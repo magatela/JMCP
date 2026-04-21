@@ -37,6 +37,13 @@ class JiraAPI(RestAPIClient):
     # Util                                                            #
     # --------------------------------------------------------------- #
     def normalize_issue_key(self, key:str):
+        """
+        Normalisiert den übergebenen Issue-Key.
+        Fügt das Projekt-Präfix hinzu, falls es noch nicht vorhanden ist.
+        
+        :param key: Der ursprüngliche Issue-Key (mit oder ohne Präfix).
+        :return: Der vollständige Issue-Key (z.B. "PROJ-123").
+        """
         issueKey = f'{key}'
         if not issueKey.startswith(self._prefix):
             issueKey = f'{self._prefix}-{issueKey}'
@@ -50,7 +57,7 @@ class JiraAPI(RestAPIClient):
     # GET
     def get_project_info(self):
         """         
-        Ruft die Informationen zum Projekt ab.  
+        Ruft die detaillierten Informationen zum konfigurierten Projekt (anhand des Präfixes) ab.  
         :return: Response-Objekt der GET-Anfrage.
         """
         return self.get(f"{self.API_PATH}project/{self._prefix}")
@@ -58,23 +65,23 @@ class JiraAPI(RestAPIClient):
     def get_issue_info(self, key: str):
         """
         Ruft die Informationen zu einem Issue ab.    
-        :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
         :return: Response-Objekt der GET-Anfrage.
         """
         return self.get(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}")
 
     def get_changelogs(self, key: str):
         """     
-        Ruft die Änderungsprotokolle (Changelogs) eines Issues ab. Der Key muss das Projekt-Präfix enthalten.
-        :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
+        Ruft die Änderungsprotokolle (Changelogs) eines Issues ab.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
         :return: Response-Objekt der GET-Anfrage.
         """
         return self.get(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}/changelog")
 
     def check_issue_editable_fields(self, key: str):
         """
-        Prüft, welche Felder eines Issues bearbeitet werden können. Der Key muss das Projekt-Präfix enthalten.
-        :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
+        Prüft, welche Felder eines Issues bearbeitet werden können.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
         :return: Response-Objekt der GET-Anfrage.
         """
         return self.get(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}/editmeta")
@@ -85,14 +92,6 @@ class JiraAPI(RestAPIClient):
         :return: Response-Objekt der GET-Anfrage.
         """
         return self.get(f"{self.API_PATH}field")
-
-    # def get_issue_fields(self, key: str):
-    #     """ 
-    #     Ruft die Felder eines Issues ab.    
-    #     :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
-    #     :return: Response-Objekt der GET-Anfrage.
-    #     """
-    #     return self.get(f"{self.API_PATH}issue/{self._prefix}-{key}/fields")
 
     def get_field_reference_data(self):
         """
@@ -106,10 +105,16 @@ class JiraAPI(RestAPIClient):
         Führt eine JQL-Abfrage aus und gibt die Ergebnisse zurück.
         :param jql: JQL-Abfrage-String.
         :param max_results: Maximale Anzahl der Ergebnisse (Standard: 50).
+        :return: Response-Objekt der GET-Anfrage mit den Suchergebnissen.
         """         
         return self.get(f"{self.API_PATH}search?jql={jql}&maxResults={max_results}")
     
     def get_bugs_linked_to_test(self, test_id: str):
+        """
+        Sucht nach Bugs, die mit einem bestimmten Testfall verknüpft sind.
+        :param test_id: Der Key des Testfalls.
+        :return: Response-Objekt der GET-Anfrage mit den gefundenen Bugs.
+        """
         jql = (
             f'issue in linkedIssues("{self.normalize_issue_key(test_id)}") '
             'AND issuetype = Bug'
@@ -118,14 +123,18 @@ class JiraAPI(RestAPIClient):
 
     def get_test_cases_in_project(self):
         """
-        Ruft alle Testfälle in einem Projekt ab.
-        :param project_key: Der Schlüssel des Projekts, z.B. "QTD".
-        :return: Response-Objekt der GET-Anfrage.
+        Ruft alle Testfälle (Issues vom Typ 'Test') im aktuell konfigurierten Projekt ab.
+        :return: Response-Objekt der GET-Anfrage mit den Testfällen.
         """
         jql = f'project = "{self._prefix}" AND issuetype = Test'
         return self.jql_requests(jql)
 
     def get_all_transitions(self, key:str):
+        """
+        Ruft alle möglichen Statusübergänge (Transitions) für ein bestimmtes Issue ab.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
+        :return: Response-Objekt der GET-Anfrage mit den Transitions.
+        """
         return self.get(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}/transitions")
         
     # POST
@@ -139,47 +148,44 @@ class JiraAPI(RestAPIClient):
 
     def set_issue_transition(self, key: Any, data: Dict[str, Any]):
         """
-        Payload Example:
-        ID ändersicht jenachdem welche Workflow für das Issue definiert ist
-        payload = {
-           'transition':{
-                'id': '4'
-            }
-        }
+        Führt einen Statusübergang (Transition) für ein Issue aus.
+        :param key: Der Key des Issues.
+        :param data: JSON-Payload mit der Transition-ID.
+                     Beispiel: {'transition': {'id': '4'}}
+                     (Die ID hängt vom konfigurierten Workflow ab).
+        :return: Response-Objekt der POST-Anfrage.
         """
         return self.post(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}/transitions", data=data)
     
     def set_issuelink(self, data):
         """
-        Beispiel Data:
-        data = {
-        "type":{
-            "name": "Befund",
-        },
-        "inwardIssue": {
-                "key": "STORY-123",
-        },
-        "outwardIssue":{
-                "key": "TEST-456"
-        }
-    }
+        Erstellt eine Verknüpfung (Link) zwischen zwei Issues.
+        :param data: JSON-Payload mit Link-Typ und den beiden Issue-Keys (inward/outward).
+                     Beispiel:
+                     {
+                         "type": {"name": "Befund"},
+                         "inwardIssue": {"key": "STORY-123"},
+                         "outwardIssue": {"key": "TEST-456"}
+                     }
+        :return: Response-Objekt der POST-Anfrage.
         """
         return self.post(f"{self.API_PATH}issueLink", data=data)
 
     # PUT
     def update_issue(self, key: str, data: Dict[str, Any]):
         """
-        Aktualisiert ein Issue. Der Key muss das Projekt-Präfix enthalten.
-        :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
+        Aktualisiert die Felder eines bestehenden Issues.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
         :param data: Die zu aktualisierenden Felder im JSON-Format.
+        :return: Response-Objekt der PUT-Anfrage.
         """
         return self.put(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}", data=data)
     
     # DELETE
     def delete_issue(self, key: str):
         """
-        Löscht ein Issue. Der Key muss das Projekt-Präfix enthalten.    
-        :param key: Der Key des Issues, inklusive des Projekt-Präfixes.
+        Löscht ein Issue.
+        :param key: Der Key des Issues (mit oder ohne Projekt-Präfix).
         :return: Response-Objekt der DELETE-Anfrage.
         """
         return self.delete(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}")
@@ -187,7 +193,7 @@ class JiraAPI(RestAPIClient):
     # Sonstiges
     def check_user_credentials(self):
         """
-        Prüft Benutzer­daten durch einen simplen GET-Call auf die API-Wurzel.
+        Prüft Benutzer daten durch einen simplen GET-Call auf die API-Wurzel.
         Gibt das Response-Objekt zurück (Status 200 → OK).
         """
         return self.get(self.API_PATH)
