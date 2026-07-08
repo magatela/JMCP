@@ -7,7 +7,7 @@ Jira-specific endpoints.
 """
 
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 import json
 
 from base_api import RestAPIClient
@@ -62,13 +62,18 @@ class JiraAPI(RestAPIClient):
         """
         return self.get(f"{self.API_PATH}project/{self._prefix}")
 
-    def get_issue_info(self, key: str):
+    def get_issue_info(self, key: str, fields: Optional[List[str]] = None):
         """
         Retrieves information for an issue.
         :param key: The key of the issue (with or without project prefix).
+        :param fields: Optional list of fields to retrieve (to save tokens).
         :return: Response object of the GET request.
         """
-        return self.get(f"{self.API_PATH}issue/{self.normalize_issue_key(key)}")
+        path = f"{self.API_PATH}issue/{self.normalize_issue_key(key)}"
+        if fields:
+            fields_str = ",".join(fields)
+            path += f"?fields={fields_str}"
+        return self.get(path)
 
     def get_changelogs(self, key: str):
         """     
@@ -100,14 +105,19 @@ class JiraAPI(RestAPIClient):
         """
         return self.get(f"{self.API_PATH}jql/autocompletedata")
 
-    def jql_requests(self, jql: str, max_results: int = 50):
+    def jql_requests(self, jql: str, max_results: int = 50, fields: Optional[List[str]] = None):
         """
         Executes a JQL query and returns the results.
         :param jql: JQL query string.
         :param max_results: Maximum number of results (default: 50).
+        :param fields: Optional list of fields to retrieve.
         :return: Response object of the GET request with the search results.
         """         
-        return self.get(f"{self.API_PATH}search?jql={jql}&maxResults={max_results}")
+        path = f"{self.API_PATH}search?jql={jql}&maxResults={max_results}"
+        if fields:
+            fields_str = ",".join(fields)
+            path += f"&fields={fields_str}"
+        return self.get(path)
     
     def get_bugs_linked_to_test(self, test_id: str):
         """
