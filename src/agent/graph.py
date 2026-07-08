@@ -35,7 +35,12 @@ def compile_agent(
             "1. Use the tools at your disposal to query accurate information before responding.\n"
             "2. Be precise and polite.\n"
             "3. When performing issue status transitions, make sure to query available transitions first using get_issue_transitions.\n"
-            "4. If an API operation fails, report the error code and error message back to the user."
+            "4. If an API operation fails, report the error code and error message back to the user.\n"
+            "5. To prevent token window overflow (context bloating) when handling large amounts of data:\n"
+            "   - Use JQL queries or lists which are returned in a condensed format by default.\n"
+            "   - If you need to count, analyze, or process a large set of issues, divide the work into batches (e.g. processing 10-20 items at a time).\n"
+            "   - Use the provisional memory tools (write_to_scratchpad, read_from_scratchpad, list_scratchpad_keys) to store partial calculations, counts, notes, or lists.\n"
+            "   - Read from the scratchpad to consolidate your findings and deliver the final answer, then clear the scratchpad if no longer needed."
         )
 
     # In-memory checkpointer to keep conversation history (context) via thread_id

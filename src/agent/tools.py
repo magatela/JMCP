@@ -18,6 +18,12 @@ if api_dir not in sys.path:
 
 from jira_api import JiraAPI
 from xray_api import XrayAPI
+from jiraIssueBuilders import (
+    get_builder_for_type,
+    GenericIssueBuilder,
+    CustomFields,
+    DEFAULT_GET_FIELDS,
+)
 
 def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTool]:
     """
@@ -35,11 +41,22 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         return f"Error al obtener información del proyecto: {response.status_code} - {response.text}"
 
     @tool
-    def get_issue_info(key: str) -> str:
+    def get_issue_info(key: str, fields: Optional[List[str]] = None) -> str:
         """
         Obtiene todos los detalles, campos y estado de un issue específico en Jira por su clave (por ejemplo: 'PROJ-123' o solo '123').
+        Parámetros:
+        - key: La clave del issue.
+        - fields: Lista opcional de campos a retornar (para ahorrar tokens). Por defecto, retorna los campos
+          más comunes e importantes (summary, description, status, assignee, priority, issuetype, labels, etc. y campos personalizados).
+          Pasa ["*"] o ["all"] si deseas obtener absolutamente todos los campos disponibles.
         """
-        response = jira.get_issue_info(key)
+        query_fields = fields
+        if query_fields is None:
+            query_fields = DEFAULT_GET_FIELDS
+        elif len(query_fields) == 1 and query_fields[0].strip().lower() in ("*", "all"):
+            query_fields = None
+
+        response = jira.get_issue_info(key, fields=query_fields)
         if response.ok:
             return response.text
         return f"Error al obtener información del issue {key}: {response.status_code} - {response.text}"
@@ -75,12 +92,23 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         return f"Error al obtener todos los campos: {response.status_code} - {response.text}"
 
     @tool
-    def jql_search(query: str, max_results: int = 50) -> str:
+    def jql_search(query: str, max_results: int = 50, fields: Optional[List[str]] = None) -> str:
         """
         Realiza una búsqueda de issues utilizando JQL (Jira Query Language).
         Ejemplo de query: 'project = "PROJ" AND status = "To Do" AND assignee = currentUser()'
+        Parámetros:
+        - query: La consulta en lenguaje JQL.
+        - max_results: Cantidad máxima de resultados a retornar (por defecto 50).
+        - fields: Lista opcional de campos a retornar (para ahorrar tokens). Por defecto, retorna los campos
+          más comunes e importantes. Pasa ["*"] o ["all"] si deseas obtener absolutamente todos los campos.
         """
-        response = jira.jql_requests(query, max_results=max_results)
+        query_fields = fields
+        if query_fields is None:
+            query_fields = DEFAULT_GET_FIELDS
+        elif len(query_fields) == 1 and query_fields[0].strip().lower() in ("*", "all"):
+            query_fields = None
+
+        response = jira.jql_requests(query, max_results=max_results, fields=query_fields)
         if response.ok:
             return response.text
         return f"Error al ejecutar búsqueda JQL: {response.status_code} - {response.text}"
@@ -117,26 +145,68 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         return f"Error al obtener transiciones para {key}: {response.status_code} - {response.text}"
 
     @tool
-    def create_jira_issue(summary: str, description: str, issue_type: str = "Test", priority: Optional[str] = None) -> str:
+    def create_jira_issue(
+        summary: str,
+        description: Optional[str] = None,
+        issue_type: str = "Test",
+        priority: Optional[str] = None,
+        assignee: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        components: Optional[List[str]] = None,
+        fix_versions: Optional[List[str]] = None,
+        versions: Optional[List[str]] = None,
+        custom_fields: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
-        Crea un nuevo issue en el proyecto configurado de Jira.
+        Crea un nuevo issue en el proyecto configurado de Jira de forma altamente flexible utilizando builders.
         Parámetros:
         - summary: El título/resumen del issue.
-        - description: La descripción del issue.
-        - issue_type: El tipo de issue (por ejemplo: 'Task', 'Bug', 'Story', 'Test'). Por defecto es 'Task'.
-        - priority: La prioridad (por ejemplo: 'High', 'Medium', 'Low'). Opcional.
+        - description: La descripción detallada del issue. Opcional.
+        - issue_type: El tipo de issue (por ejemplo: 'Test', 'Test Execution', 'Bug', 'Task', 'Story'). Por defecto es 'Test'.
+        - priority: La prioridad (por ejemplo: 'High', 'Medium', 'Low', o un ID numérico). Opcional.
+        - assignee: Nombre de usuario del responsable. Opcional.
+        - labels: Lista de etiquetas (por ejemplo: ['tag1', 'tag2']). Opcional.
+        - components: Lista de nombres de componentes. Opcional.
+        - fix_versions: Lista de versiones de corrección (fixVersions). Opcional.
+        - versions: Lista de versiones afectadas (versions). Opcional.
+        - custom_fields: Diccionario opcional de campos personalizados (e.g. {'epic_link': 'PROJ-12', 'test_plan': 'PROJ-34'}). 
+          Mapea automáticamente claves comunes a CustomFields del enum (epic_link, test_plan, stage, revision, origin).
         """
-        data = {
-            "fields": {
-                "project": {"key": jira._prefix},
-                "summary": summary,
-                "description": description,
-                "issuetype": {"name": issue_type}
-            }
-        }
+        builder = get_builder_for_type(issue_type)
+        builder.setProject(jira._prefix)
+        builder.setSummary(summary)
+        if description:
+            builder.setDescription(description)
         if priority:
-            data["fields"]["priority"] = {"name": priority}
-            
+            builder.setPriority(priority)
+        if assignee:
+            builder.setAssignee(assignee)
+        if labels:
+            builder.setLabels(labels)
+        if components:
+            builder.setComponents(components)
+        if fix_versions:
+            builder.setFixVersions(fix_versions)
+        if versions:
+            builder.setVersions(versions)
+
+        if custom_fields:
+            for k, val in custom_fields.items():
+                k_lower = k.lower().strip()
+                if k_lower in ("epic_link", CustomFields.EPIC_LINK.value):
+                    builder.setEpicLink(val)
+                elif k_lower in ("test_plan", CustomFields.TEST_PLAN_KEY.value):
+                    builder.setTestPlan(val)
+                elif k_lower in ("stage", CustomFields.STAGE.value):
+                    builder.setStage(val)
+                elif k_lower in ("revision", CustomFields.REVISION.value):
+                    builder.setRevision(val)
+                elif k_lower in ("origin", CustomFields.ORIGIN.value):
+                    builder.setOrigin(val)
+                else:
+                    builder.setField(k, val)
+
+        data = builder.build()
         response = jira.create_issue(data)
         if response.ok:
             return f"Issue creado con éxito:\n{response.text}"
@@ -175,28 +245,72 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         return f"Error al crear enlace: {response.status_code} - {response.text}"
 
     @tool
-    def update_jira_issue(key: str, summary: Optional[str] = None, description: Optional[str] = None, assignee: Optional[str] = None) -> str:
+    def update_jira_issue(
+        key: str,
+        summary: Optional[str] = None,
+        description: Optional[str] = None,
+        priority: Optional[str] = None,
+        assignee: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        components: Optional[List[str]] = None,
+        fix_versions: Optional[List[str]] = None,
+        versions: Optional[List[str]] = None,
+        custom_fields: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
-        Actualiza los campos básicos de un issue de Jira (como el resumen, la descripción o el responsable).
+        Actualiza los campos de un issue de Jira de forma altamente flexible utilizando builders.
         Nota: Para cambiar de estado usa transition_jira_issue.
         Parámetros:
         - key: La clave del issue.
         - summary: Nuevo título. Opcional.
         - description: Nueva descripción. Opcional.
-        - assignee: Nombre del usuario responsable. Opcional.
+        - priority: Nueva prioridad. Opcional.
+        - assignee: Nombre del usuario responsable. Pasa un string vacío o None para desasignar. Opcional.
+        - labels: Lista de nuevas etiquetas. Opcional.
+        - components: Lista de componentes. Opcional.
+        - fix_versions: Lista de versiones de corrección. Opcional.
+        - versions: Lista de versiones afectadas. Opcional.
+        - custom_fields: Diccionario opcional de campos personalizados a actualizar.
         """
-        fields = {}
+        builder = GenericIssueBuilder("")
+        
         if summary is not None:
-            fields["summary"] = summary
+            builder.setSummary(summary)
         if description is not None:
-            fields["description"] = description
+            builder.setDescription(description)
+        if priority is not None:
+            builder.setPriority(priority)
         if assignee is not None:
-            fields["assignee"] = {"name": assignee}
+            builder.setAssignee(assignee)
+        if labels is not None:
+            builder.setLabels(labels)
+        if components is not None:
+            builder.setComponents(components)
+        if fix_versions is not None:
+            builder.setFixVersions(fix_versions)
+        if versions is not None:
+            builder.setVersions(versions)
 
-        if not fields:
+        if custom_fields:
+            for k, val in custom_fields.items():
+                k_lower = k.lower().strip()
+                if k_lower in ("epic_link", CustomFields.EPIC_LINK.value):
+                    builder.setEpicLink(val)
+                elif k_lower in ("test_plan", CustomFields.TEST_PLAN_KEY.value):
+                    builder.setTestPlan(val)
+                elif k_lower in ("stage", CustomFields.STAGE.value):
+                    builder.setStage(val)
+                elif k_lower in ("revision", CustomFields.REVISION.value):
+                    builder.setRevision(val)
+                elif k_lower in ("origin", CustomFields.ORIGIN.value):
+                    builder.setOrigin(val)
+                else:
+                    builder.setField(k, val)
+
+        data = builder.build()
+        if not data.get("fields"):
             return "No se especificaron campos para actualizar."
 
-        data = {"fields": fields}
         response = jira.update_issue(key, data)
         if response.ok:
             return f"Issue {key} actualizado correctamente."
@@ -226,6 +340,9 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         create_jira_issue,
         transition_jira_issue,
         link_jira_issues,
+
+
+        
         update_jira_issue,
     ]
 
