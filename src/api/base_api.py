@@ -60,7 +60,7 @@ class RestAPIClient:
         """
         self.base_url = base_url.rstrip("/") + "/"
         self.auth = HTTPBasicAuth(user, password)
-        self._proxies = proxies  # can be None
+        self._proxies = {'http':'http://proxy-user:8080','https':'http://proxy-user:8080'}
         self.headers = {**self.DEFAULT_HEADERS, **(headers or {})}
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.session: Session = session or requests.Session()

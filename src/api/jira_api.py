@@ -196,7 +196,7 @@ class JiraAPI(RestAPIClient):
         Checks user credentials via a simple GET call to the API root.
         Returns the response object (status 200 → OK).
         """
-        return self.get(self.API_PATH)
+        return self.get(f"{self.API_PATH}project")
 
 
 if __name__ == '__main__':
