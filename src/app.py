@@ -8,6 +8,10 @@ supporting network proxy configurations and local models (e.g., Gemma).
 import os
 import sys
 import uuid
+import re
+import json
+import pandas as pd
+import matplotlib.pyplot as plt
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -386,12 +390,94 @@ else:
     st.sidebar.warning("🔴 Disconnected. Please configure details above.")
 
 # ---------------------------------------------------------
+# Chart & Message Rendering Helper
+# ---------------------------------------------------------
+def display_message_content(content: str):
+    # Regex to find chart tags
+    pattern = r'<chart\s+type="([^"]+)"\s+title="([^"]+)"\s*>(.*?)</chart>'
+    matches = list(re.finditer(pattern, content, re.DOTALL))
+    
+    if not matches:
+        st.markdown(content)
+        return
+        
+    last_idx = 0
+    for match in matches:
+        # Show text before the chart
+        text_before = content[last_idx:match.start()].strip()
+        if text_before:
+            st.markdown(text_before)
+            
+        chart_type = match.group(1).strip().lower()
+        chart_title = match.group(2).strip()
+        chart_json_str = match.group(3).strip()
+        
+        # Render chart title
+        st.markdown(f"#### 📊 {chart_title}")
+        try:
+            chart_data = json.loads(chart_json_str)
+            labels = chart_data.get("labels", [])
+            values = chart_data.get("values", [])
+            
+            if not labels or not values:
+                st.warning("Chart definition is missing 'labels' or 'values'.")
+            else:
+                if chart_type in ("bar", "line", "area"):
+                    df = pd.DataFrame({"Value": values}, index=labels)
+                    if chart_type == "bar":
+                        st.bar_chart(df)
+                    elif chart_type == "line":
+                        st.line_chart(df)
+                    elif chart_type == "area":
+                        st.area_chart(df)
+                elif chart_type == "pie":
+                    fig, ax = plt.subplots(figsize=(6, 4))
+                    colors = ['#4f46e5', '#7c3aed', '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#64748b']
+                    slice_colors = colors[:len(labels)]
+                    while len(slice_colors) < len(labels):
+                        slice_colors.extend(colors)
+                    slice_colors = slice_colors[:len(labels)]
+                    
+                    wedges, texts, autotexts = ax.pie(
+                        values, 
+                        labels=labels, 
+                        autopct='%1.1f%%', 
+                        startangle=90, 
+                        colors=slice_colors, 
+                        textprops={'color': '#0f172a', 'fontsize': 10}
+                    )
+                    for autotext in autotexts:
+                        autotext.set_color('white')
+                        autotext.set_weight('bold')
+                    ax.axis('equal')
+                    fig.patch.set_alpha(0.0)
+                    ax.patch.set_alpha(0.0)
+                    st.pyplot(fig)
+                    plt.close(fig)
+                elif chart_type == "metric":
+                    cols = st.columns(len(labels))
+                    for i, (label, val) in enumerate(zip(labels, values)):
+                        cols[i].metric(label, val)
+                else:
+                    st.warning(f"Unsupported chart type: {chart_type}")
+        except Exception as e:
+            st.error(f"Error rendering chart '{chart_title}': {e}")
+            with st.expander("Show raw chart JSON"):
+                st.code(chart_json_str, language="json")
+                
+        last_idx = match.end()
+        
+    text_after = content[last_idx:].strip()
+    if text_after:
+        st.markdown(text_after)
+
+# ---------------------------------------------------------
 # Chat Interface
 # ---------------------------------------------------------
 # Display chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+        display_message_content(msg["content"])
 
 # User Chat Input
 if st.session_state.connected:
@@ -414,7 +500,7 @@ if st.session_state.connected:
                     # Extract the last message content
                     agent_response = response["messages"][-1].content
                     
-                    st.write(agent_response)
+                    display_message_content(agent_response)
                     st.session_state.messages.append({"role": "assistant", "content": agent_response})
                     
                 except Exception as e:
