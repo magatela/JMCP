@@ -1,1 +1,8 @@
 requests
+mcp 
+python-dotenv
+langgraph
+langchain-core
+langchain-openai
+langchain-community
+streamlit

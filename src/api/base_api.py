@@ -1,11 +1,11 @@
 # base_api.py
 """
-Basis-Client für REST-Aufrufe gegen Jira-basierte APIs.
+Base client for REST calls against Jira-based APIs.
 
-Alle gemeinsamen Funktionalitäten (Header-Handling, Authentifizierung,
-optionale Proxy-Konfiguration, Logging, HTTP-Methoden) werden hier gekapselt,
-damit abgeleitete Klassen (z. B. JiraAPI, XrayAPI) sich nur noch um ihre
-fachspezifischen Endpunkte kümmern müssen.
+All common functionalities (header handling, authentication,
+optional proxy configuration, logging, HTTP methods) are encapsulated here,
+so that derived classes (e.g. JiraAPI, XrayAPI) only need to care about their
+business-specific endpoints.
 """
 
 from __future__ import annotations
@@ -19,9 +19,9 @@ from requests.auth import HTTPBasicAuth
 
 
 class RestAPIClient:
-    """Abstrakte Basisklasse für einfache REST-Clients."""
+    """Abstract base class for simple REST clients."""
 
-    #: Standard-Header für alle Anfragen
+    #: Default headers for all requests
     DEFAULT_HEADERS: Dict[str, str] = {
         "Accept": "application/json",
         "Content-Type": "application/json; charset=utf-8",
@@ -39,43 +39,43 @@ class RestAPIClient:
         session: Optional[Session] = None,
     ) -> None:
         """
-        Parameter
-        ---------
+        Parameters
+        ----------
         base_url:
-            Basis-URL der Jira-Instanz, z. B. ``https://jira.example.com/``
-            (ohne *rest/api/...*).
+            Base URL of the Jira instance, e.g. ``https://jira.example.com/``
+            (without *rest/api/...*).
         user / password:
-            Jira-Benutzerdaten.
+            Jira user credentials.
         proxies:
-            Optionales Proxy-Dictionary wie bei ``requests`` (z. B.
+            Optional proxy dictionary like in ``requests`` (e.g.
             ``{"http": "http://proxy:8080", "https": "http://proxy:8080"}``).
-            Kann später über :meth:`set_proxies` angepasst werden.
+            Can be adjusted later via :meth:`set_proxies`.
         headers:
-            Zusätzliche oder zu überschreibende HTTP-Header.
+            Additional or overriding HTTP headers.
         logger:
-            Wenn *None*, wird ein ``logging.getLogger(classname)`` erzeugt.
+            If *None*, a ``logging.getLogger(classname)`` is created.
         session:
-            Eigene ``requests.Session`` (für Connection-Pooling, Retry-Strategien
-            usw.). Falls *None*, wird intern eine neue Session angelegt.
+            Custom ``requests.Session`` (for connection pooling, retry strategies,
+            etc.). If *None*, a new session is created internally.
         """
         self.base_url = base_url.rstrip("/") + "/"
         self.auth = HTTPBasicAuth(user, password)
-        self._proxies = proxies  # kann None sein
+        self._proxies = proxies  # can be None
         self.headers = {**self.DEFAULT_HEADERS, **(headers or {})}
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.session: Session = session or requests.Session()
 
     # ------------------------------------------------------------------ #
-    # Öffentliche Hilfs­funktionen                                       #
+    # Public helper functions                                            #
     # ------------------------------------------------------------------ #
 
     def set_proxies(self, proxies: Optional[Dict[str, str]]) -> None:
-        """Proxy-Konfiguration nachträglich ändern oder komplett deaktivieren."""
-        self.logger.debug("Proxy-Einstellung geändert: %s", proxies)
+        """Change proxy configuration retrospectively or deactivate it completely."""
+        self.logger.debug("Proxy setting changed: %s", proxies)
         self._proxies = proxies
 
     # ------------------------------------------------------------------ #
-    # HTTP-Methoden                                                      #
+    # HTTP methods                                                       #
     # ------------------------------------------------------------------ #
 
     def get(self, endpoint: str, **kwargs) -> Response:
@@ -95,19 +95,19 @@ class RestAPIClient:
         return self._request("DELETE", endpoint, **kwargs)
 
     # ------------------------------------------------------------------ #
-    # Interne Implementierung                                            #
+    # Internal implementation                                            #
     # ------------------------------------------------------------------ #
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Response:
         """
-        Führt einen HTTP-Request aus und gibt das ``Response``-Objekt zurück.
-        Ein JSON-Payload wird automatisch serialisiert, Header & Proxys werden
-        ergänzt.
+        Executes an HTTP request and returns the ``Response`` object.
+        A JSON payload is automatically serialized, headers & proxies are
+        added.
         """
         url = endpoint if endpoint.startswith("http") else self.base_url + endpoint
         self.logger.debug("%s %s", method, url)
 
-        # Standard-Header + evtl. übergebene Header
+        # Default headers + any passed headers
         hdrs = {**self.headers, **kwargs.pop("headers", {})}
         
         resp = self.session.request(
@@ -120,29 +120,29 @@ class RestAPIClient:
             **kwargs,
         )
 
-        # Fehler protokollieren, aber nicht automatisch Exception werfen –
-        # das überlassen wir den Aufrufern.
+        # Log error, but do not automatically raise an exception –
+        # we leave that to the callers.
         if not resp.ok:
             try:
                 error_payload = resp.json()
             except ValueError:
                 error_payload = resp.text
-            print(f"Fehlerhafte Antwort {resp.status_code} für {method} {url} {error_payload}")
-            self.logger.debug(f"Fehlerhafte Antwort {resp.status_code} für {method} {url} {error_payload}")
+            print(f"Error response {resp.status_code} for {method} {url} {error_payload}")
+            self.logger.debug(f"Error response {resp.status_code} for {method} {url} {error_payload}")
         return resp
 
     # ------------------------------------------------------------------ #
-    # Utility: Antwort als JSON-Datei sichern (debugging)                #
+    # Utility: Save response as JSON file (debugging)                    #
     # ------------------------------------------------------------------ #
 
     def save_response(self, response: Response, path: str = "response.json") -> None:
-        """Antwort­inhalt (JSON) in Datei schreiben – für Debugging-Zwecke."""
+        """Write response content (JSON) to file – for debugging purposes."""
         try:
             data = response.json()
         except ValueError:
-            self.logger.error("Keine gültige JSON-Antwort → %s", path)
+            self.logger.error("No valid JSON response → %s", path)
             data = {"raw": response.text}
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-            self.logger.info("Antwort unter %s gespeichert", path)
+            self.logger.info("Response saved under %s", path)
