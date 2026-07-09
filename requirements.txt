@@ -6,3 +6,5 @@ langchain-core
 langchain-openai
 langchain-community
 streamlit
+pandas
+matplotlib
