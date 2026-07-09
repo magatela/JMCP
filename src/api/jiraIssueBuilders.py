@@ -15,7 +15,7 @@ class CustomFields(Enum):
     TEST_PLAN_KEY = 'customfield_10231' 
     STAGE = 'customfield_10229'
     REVISION = 'customfield_10223'
-    ORIGIN = 'customfield_20003' # Herkunft  {"value": "Entwicklung", "id": "520539",} {"value": "RZF", "id": "520538"}
+    ORIGIN = 'customfield_20003' # Origin  {"value": "Entwicklung", "id": "520539",} {"value": "RZF", "id": "520538"}
 
 class TransitionsIDTestExecution(Enum):
     IN_PROGRESS = 4

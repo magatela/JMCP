@@ -491,21 +491,43 @@ if st.session_state.connected:
 
         # 2. Get Agent Response
         with st.chat_message("assistant"):
-            with st.spinner("Agent is running..."):
-                try:
-                    response = st.session_state.agent.invoke(
+            try:
+                final_content = ""
+                with st.status("🔍 Starting Jira & Xray agent...", expanded=True) as status_container:
+                    status_text = st.empty()
+                    status_text.write("⚙️ The agent is analyzing your request...")
+                    
+                    for event in st.session_state.agent.stream(
                         {"messages": [("user", user_input)]},
-                        config=st.session_state.config
-                    )
-                    # Extract the last message content
-                    agent_response = response["messages"][-1].content
+                        config=st.session_state.config,
+                        stream_mode="updates"
+                    ):
+                        if "agent" in event:
+                            agent_msg = event["agent"]["messages"][-1]
+                            if agent_msg.tool_calls:
+                                for tool_call in agent_msg.tool_calls:
+                                    name = tool_call["name"]
+                                    args = tool_call["args"]
+                                    status_text.write(f"🛠️ Executing tool `{name}` with parameters: `{args}`...")
+                            else:
+                                final_content = agent_msg.content
+                        elif "tools" in event:
+                            tool_msg = event["tools"]["messages"][-1]
+                            tool_name = getattr(tool_msg, "name", "tool")
+                            status_text.write(f"✅ Tool `{tool_name}` executed. Analyzing results...")
                     
-                    display_message_content(agent_response)
-                    st.session_state.messages.append({"role": "assistant", "content": agent_response})
-                    
-                except Exception as e:
-                    error_msg = f"An error occurred while executing request: {e}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                    status_container.update(label="🤖 Processing completed", state="complete", expanded=False)
+
+                if not final_content:
+                    state = st.session_state.agent.get_state(st.session_state.config)
+                    final_content = state.values["messages"][-1].content
+
+                display_message_content(final_content)
+                st.session_state.messages.append({"role": "assistant", "content": final_content})
+
+            except Exception as e:
+                error_msg = f"An error occurred while executing request: {e}"
+                st.error(error_msg)
+                st.session_state.messages.append({"role": "assistant", "content": error_msg})
 else:
     st.info("💡 Please fill in your connection credentials and click **Save & Connect** in the sidebar to start talking with the agent.")

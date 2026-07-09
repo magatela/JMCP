@@ -1,7 +1,7 @@
 # tools.py
 """
-Define las herramientas de LangChain para interactuar con Jira y Xray.
-Utiliza un patrón de factoría para inyectar las instancias de JiraAPI y XrayAPI.
+Defines LangChain tools for interacting with Jira and Xray.
+Uses a factory pattern to inject JiraAPI and XrayAPI instances.
 """
 
 import sys
@@ -9,7 +9,7 @@ import os
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import tool, BaseTool
 
-# Asegurar que el directorio src/api esté en el path para poder importar base_api, jira_api y xray_api
+# Ensure the src/api directory is in path to import base_api, jira_api, and xray_api
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 api_dir = os.path.join(parent_dir, "api")
@@ -27,28 +27,28 @@ from jiraIssueBuilders import (
 
 def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTool]:
     """
-    Retorna la lista de herramientas de LangChain enlazadas con los clientes de la API.
+    Returns the list of LangChain tools bound to the API clients.
     """
 
     @tool
     def get_project_info() -> str:
         """
-        Obtiene información general y configuración del proyecto de Jira actual.
+        Retrieves general information and configuration of the current Jira project.
         """
         response = jira.get_project_info()
         if response.ok:
             return response.text
-        return f"Error al obtener información del proyecto: {response.status_code} - {response.text}"
+        return f"Error retrieving project information: {response.status_code} - {response.text}"
 
     @tool
     def get_issue_info(key: str, fields: Optional[List[str]] = None) -> str:
         """
-        Obtiene todos los detalles, campos y estado de un issue específico en Jira por su clave (por ejemplo: 'PROJ-123' o solo '123').
-        Parámetros:
-        - key: La clave del issue.
-        - fields: Lista opcional de campos a retornar (para ahorrar tokens). Por defecto, retorna los campos
-          más comunes e importantes (summary, description, status, assignee, priority, issuetype, labels, etc. y campos personalizados).
-          Pasa ["*"] o ["all"] si deseas obtener absolutamente todos los campos disponibles.
+        Retrieves all details, fields, and status of a specific issue in Jira by its key (e.g., 'PROJ-123' or just '123').
+        Parameters:
+        - key: The issue key.
+        - fields: Optional list of fields to return (to save tokens). By default, returns the most
+          common and important fields (summary, description, status, assignee, priority, issuetype, labels, etc., and custom fields).
+          Pass ["*"] or ["all"] if you want to retrieve absolutely all available fields.
         """
         query_fields = fields
         if query_fields is None:
@@ -59,48 +59,48 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         response = jira.get_issue_info(key, fields=query_fields)
         if response.ok:
             return response.text
-        return f"Error al obtener información del issue {key}: {response.status_code} - {response.text}"
+        return f"Error retrieving issue information for {key}: {response.status_code} - {response.text}"
 
     @tool
     def get_issue_changelogs(key: str) -> str:
         """
-        Obtiene el historial de cambios (changelogs) de un issue de Jira por su clave.
+        Retrieves the change logs (changelogs) of a Jira issue by its key.
         """
         response = jira.get_changelogs(key)
         if response.ok:
             return response.text
-        return f"Error al obtener changelogs del issue {key}: {response.status_code} - {response.text}"
+        return f"Error retrieving changelogs for issue {key}: {response.status_code} - {response.text}"
 
     @tool
     def check_issue_editable_fields(key: str) -> str:
         """
-        Verifica qué campos de un issue específico son editables en su estado actual.
+        Checks which fields of a specific issue are editable in its current status.
         """
         response = jira.check_issue_editable_fields(key)
         if response.ok:
             return response.text
-        return f"Error al verificar campos editables para {key}: {response.status_code} - {response.text}"
+        return f"Error checking editable fields for {key}: {response.status_code} - {response.text}"
 
     @tool
     def get_all_fields() -> str:
         """
-        Obtiene la lista de todos los campos disponibles en la instancia de Jira (tanto del sistema como personalizados).
+        Retrieves the list of all available fields in the Jira instance (both system and custom fields).
         """
         response = jira.get_all_fields()
         if response.ok:
             return response.text
-        return f"Error al obtener todos los campos: {response.status_code} - {response.text}"
+        return f"Error retrieving all fields: {response.status_code} - {response.text}"
 
     @tool
     def jql_search(query: str, max_results: int = 50, fields: Optional[List[str]] = None) -> str:
         """
-        Realiza una búsqueda de issues utilizando JQL (Jira Query Language).
-        Ejemplo de query: 'project = "PROJ" AND status = "To Do" AND assignee = currentUser()'
-        Parámetros:
-        - query: La consulta en lenguaje JQL.
-        - max_results: Cantidad máxima de resultados a retornar (por defecto 50).
-        - fields: Lista opcional de campos a retornar (para ahorrar tokens). Por defecto, retorna los campos
-          más comunes e importantes. Pasa ["*"] o ["all"] si deseas obtener absolutamente todos los campos.
+        Performs an issue search using JQL (Jira Query Language).
+        Query example: 'project = "PROJ" AND status = "To Do" AND assignee = currentUser()'
+        Parameters:
+        - query: The JQL query string.
+        - max_results: Maximum number of results to return (default is 50).
+        - fields: Optional list of fields to return (to save tokens). By default, returns the most
+          common and important fields. Pass ["*"] or ["all"] if you want to retrieve absolutely all fields.
         """
         query_fields = fields
         if query_fields is None:
@@ -111,38 +111,38 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         response = jira.jql_requests(query, max_results=max_results, fields=query_fields)
         if response.ok:
             return response.text
-        return f"Error al ejecutar búsqueda JQL: {response.status_code} - {response.text}"
+        return f"Error executing JQL search: {response.status_code} - {response.text}"
 
     @tool
     def get_bugs_linked_to_test(test_id: str) -> str:
         """
-        Busca bugs que estén enlazados a un caso de prueba (Test Case) específico.
+        Searches for bugs linked to a specific test case.
         """
         response = jira.get_bugs_linked_to_test(test_id)
         if response.ok:
             return response.text
-        return f"Error al buscar bugs asociados al test {test_id}: {response.status_code} - {response.text}"
+        return f"Error searching for bugs associated with test {test_id}: {response.status_code} - {response.text}"
 
     @tool
     def get_test_cases_in_project() -> str:
         """
-        Obtiene todos los casos de prueba (issues de tipo 'Test') en el proyecto configurado.
+        Retrieves all test cases (issues of type 'Test') in the configured project.
         """
         response = jira.get_test_cases_in_project()
         if response.ok:
             return response.text
-        return f"Error al obtener casos de prueba: {response.status_code} - {response.text}"
+        return f"Error retrieving test cases: {response.status_code} - {response.text}"
 
     @tool
     def get_issue_transitions(key: str) -> str:
         """
-        Obtiene los estados de destino disponibles (transiciones) para un issue.
-        Retorna los IDs de las transiciones y sus nombres.
+        Retrieves the available destination statuses (transitions) for an issue.
+        Returns the transition IDs and names.
         """
         response = jira.get_all_transitions(key)
         if response.ok:
             return response.text
-        return f"Error al obtener transiciones para {key}: {response.status_code} - {response.text}"
+        return f"Error retrieving transitions for {key}: {response.status_code} - {response.text}"
 
     @tool
     def create_jira_issue(
@@ -158,19 +158,19 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         custom_fields: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
-        Crea un nuevo issue en el proyecto configurado de Jira de forma altamente flexible utilizando builders.
-        Parámetros:
-        - summary: El título/resumen del issue.
-        - description: La descripción detallada del issue. Opcional.
-        - issue_type: El tipo de issue (por ejemplo: 'Test', 'Test Execution', 'Bug', 'Task', 'Story'). Por defecto es 'Test'.
-        - priority: La prioridad (por ejemplo: 'High', 'Medium', 'Low', o un ID numérico). Opcional.
-        - assignee: Nombre de usuario del responsable. Opcional.
-        - labels: Lista de etiquetas (por ejemplo: ['tag1', 'tag2']). Opcional.
-        - components: Lista de nombres de componentes. Opcional.
-        - fix_versions: Lista de versiones de corrección (fixVersions). Opcional.
-        - versions: Lista de versiones afectadas (versions). Opcional.
-        - custom_fields: Diccionario opcional de campos personalizados (e.g. {'epic_link': 'PROJ-12', 'test_plan': 'PROJ-34'}). 
-          Mapea automáticamente claves comunes a CustomFields del enum (epic_link, test_plan, stage, revision, origin).
+        Creates a new issue in the configured Jira project in a highly flexible way using builders.
+        Parameters:
+        - summary: The title/summary of the issue.
+        - description: The detailed description of the issue. Optional.
+        - issue_type: The issue type (e.g., 'Test', 'Test Execution', 'Bug', 'Task', 'Story'). Default is 'Test'.
+        - priority: The priority (e.g., 'High', 'Medium', 'Low', or a numeric ID). Optional.
+        - assignee: Username of the assignee. Optional.
+        - labels: List of labels (e.g., ['tag1', 'tag2']). Optional.
+        - components: List of component names. Optional.
+        - fix_versions: List of fix versions (fixVersions). Optional.
+        - versions: List of affected versions (versions). Optional.
+        - custom_fields: Optional dictionary of custom fields (e.g., {'epic_link': 'PROJ-12', 'test_plan': 'PROJ-34'}).
+          Automatically maps common keys to CustomFields enum values (epic_link, test_plan, stage, revision, origin).
         """
         builder = get_builder_for_type(issue_type)
         builder.setProject(jira._prefix)
@@ -209,30 +209,30 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         data = builder.build()
         response = jira.create_issue(data)
         if response.ok:
-            return f"Issue creado con éxito:\n{response.text}"
-        return f"Error al crear el issue: {response.status_code} - {response.text}"
+            return f"Issue created successfully:\n{response.text}"
+        return f"Error creating issue: {response.status_code} - {response.text}"
 
     @tool
     def transition_jira_issue(key: str, transition_id: str) -> str:
         """
-        Cambia el estado de un issue de Jira (transición).
-        Deberás usar get_issue_transitions previamente para saber la ID de transición correspondiente.
+        Changes the status of a Jira issue (transition).
+        You should use get_issue_transitions beforehand to know the corresponding transition ID.
         """
         data = {"transition": {"id": transition_id}}
         response = jira.set_issue_transition(key, data)
         if response.ok:
-            return f"El issue {key} se ha transitado con éxito a la transición ID {transition_id}."
-        return f"Error al transitar el issue {key}: {response.status_code} - {response.text}"
+            return f"Issue {key} successfully transitioned to transition ID {transition_id}."
+        return f"Error transitioning issue {key}: {response.status_code} - {response.text}"
 
     @tool
     def link_jira_issues(inward_key: str, outward_key: str, link_type_name: str = "Befund") -> str:
         """
-        Crea un enlace entre dos issues de Jira.
-        Ejemplo: Enlazar una Story con un Test, o un Bug con una Story.
-        Parámetros:
-        - inward_key: Clave del issue destino.
-        - outward_key: Clave del issue origen.
-        - link_type_name: Nombre del tipo de enlace. Por defecto es 'Befund'.
+        Creates a link between two Jira issues.
+        Example: Link a Story with a Test, or a Bug with a Story.
+        Parameters:
+        - inward_key: Destination issue key.
+        - outward_key: Source issue key.
+        - link_type_name: Link type name. Default is 'Befund'.
         """
         data = {
             "type": {"name": link_type_name},
@@ -241,8 +241,8 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         }
         response = jira.set_issuelink(data)
         if response.ok:
-            return f"Enlace tipo '{link_type_name}' creado exitosamente entre {inward_key} y {outward_key}."
-        return f"Error al crear enlace: {response.status_code} - {response.text}"
+            return f"Link of type '{link_type_name}' created successfully between {inward_key} and {outward_key}."
+        return f"Error creating link: {response.status_code} - {response.text}"
 
     @tool
     def update_jira_issue(
@@ -258,19 +258,19 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         custom_fields: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
-        Actualiza los campos de un issue de Jira de forma altamente flexible utilizando builders.
-        Nota: Para cambiar de estado usa transition_jira_issue.
-        Parámetros:
-        - key: La clave del issue.
-        - summary: Nuevo título. Opcional.
-        - description: Nueva descripción. Opcional.
-        - priority: Nueva prioridad. Opcional.
-        - assignee: Nombre del usuario responsable. Pasa un string vacío o None para desasignar. Opcional.
-        - labels: Lista de nuevas etiquetas. Opcional.
-        - components: Lista de componentes. Opcional.
-        - fix_versions: Lista de versiones de corrección. Opcional.
-        - versions: Lista de versiones afectadas. Opcional.
-        - custom_fields: Diccionario opcional de campos personalizados a actualizar.
+        Updates the fields of a Jira issue in a highly flexible way using builders.
+        Note: Use transition_jira_issue to change the issue status.
+        Parameters:
+        - key: The issue key.
+        - summary: New title. Optional.
+        - description: New description. Optional.
+        - priority: New priority. Optional.
+        - assignee: Assignee username. Pass an empty string or None to unassign. Optional.
+        - labels: List of new labels. Optional.
+        - components: List of components. Optional.
+        - fix_versions: List of fix versions. Optional.
+        - versions: List of affected versions. Optional.
+        - custom_fields: Optional dictionary of custom fields to update.
         """
         builder = GenericIssueBuilder("")
         
@@ -309,24 +309,24 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
 
         data = builder.build()
         if not data.get("fields"):
-            return "No se especificaron campos para actualizar."
+            return "No fields specified for update."
 
         response = jira.update_issue(key, data)
         if response.ok:
-            return f"Issue {key} actualizado correctamente."
-        return f"Error al actualizar el issue {key}: {response.status_code} - {response.text}"
+            return f"Issue {key} updated successfully."
+        return f"Error updating issue {key}: {response.status_code} - {response.text}"
 
     @tool
     def delete_jira_issue(key: str) -> str:
         """
-        Elimina un issue de Jira por su clave. Use con precaución.
+        Deletes a Jira issue by its key. Use with caution.
         """
         response = jira.delete_issue(key)
         if response.ok:
-            return f"Issue {key} eliminado con éxito."
-        return f"Error al eliminar el issue {key}: {response.status_code} - {response.text}"
+            return f"Issue {key} deleted successfully."
+        return f"Error deleting issue {key}: {response.status_code} - {response.text}"
 
-    # Lista básica de herramientas de Jira Core
+    # Basic Jira Core tools list
     tools_list = [
         get_project_info,
         get_issue_info,
@@ -346,27 +346,27 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
         update_jira_issue,
     ]
 
-    # Agregar herramientas de Xray si el cliente está provisto
+    # Add Xray tools if client is provided
     if xray is not None:
         @tool
         def xray_get_test_steps(test_id: str) -> str:
             """
-            [XRAY] Obtiene los pasos detallados de un caso de prueba (Test) específico.
+            [XRAY] Retrieves detailed test steps of a specific test case (Test).
             """
             response = xray.get_test_steps(test_id)
             if response.ok:
                 return response.text
-            return f"Error al obtener pasos de prueba para {test_id}: {response.status_code} - {response.text}"
+            return f"Error retrieving test steps for {test_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_add_test_step(test_id: str, step: str, data: str, result: str) -> str:
             """
-            [XRAY] Agrega un paso de prueba a un Test.
-            Parámetros:
-            - test_id: Clave del Test.
-            - step: Descripción de la acción del paso.
-            - data: Datos de entrada para el paso.
-            - result: Resultado esperado del paso.
+            [XRAY] Adds a test step to a Test.
+            Parameters:
+            - test_id: Key of the Test.
+            - step: Step action description.
+            - data: Input data for the step.
+            - result: Expected result of the step.
             """
             payload = {
                 "step": step,
@@ -375,93 +375,93 @@ def get_jira_tools(jira: JiraAPI, xray: Optional[XrayAPI] = None) -> List[BaseTo
             }
             response = xray.add_test_step(test_id, payload)
             if response.ok:
-                return f"Paso agregado con éxito al Test {test_id}."
-            return f"Error al agregar paso al Test {test_id}: {response.status_code} - {response.text}"
+                return f"Step successfully added to Test {test_id}."
+            return f"Error adding step to Test {test_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_delete_test_step(test_id: str, step_id: str) -> str:
             """
-            [XRAY] Elimina un paso de prueba específico de un Test.
+            [XRAY] Deletes a specific test step from a Test.
             """
             response = xray.delete_step(test_id, step_id)
             if response.ok:
-                return f"Paso {step_id} del Test {test_id} eliminado con éxito."
-            return f"Error al eliminar paso {step_id}: {response.status_code} - {response.text}"
+                return f"Step {step_id} of Test {test_id} successfully deleted."
+            return f"Error deleting step {step_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_get_all_test_executions(test_id: str) -> str:
             """
-            [XRAY] Obtiene la lista de todas las ejecuciones de prueba (Test Executions) asociadas a un Test.
+            [XRAY] Retrieves the list of all test executions associated with a Test.
             """
             response = xray.get_all_test_executions(test_id)
             if response.ok:
                 return response.text
-            return f"Error al obtener ejecuciones de prueba para {test_id}: {response.status_code} - {response.text}"
+            return f"Error retrieving test executions for {test_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_get_test_run_results(test_id: str) -> str:
             """
-            [XRAY] Obtiene los resultados de ejecución (Test Runs) asociados a un Test.
+            [XRAY] Retrieves the test run results associated with a Test.
             """
             response = xray.get_test_run_results(test_id)
             if response.ok:
                 return response.text
-            return f"Error al obtener resultados de ejecución para {test_id}: {response.status_code} - {response.text}"
+            return f"Error retrieving test run results for {test_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_add_test_to_execution(execution_id: str, test_keys: List[str]) -> str:
             """
-            [XRAY] Agrega una lista de claves de test (por ejemplo: ['PROJ-101', 'PROJ-102']) a una ejecución de prueba (Test Execution).
+            [XRAY] Adds a list of test keys (e.g., ['PROJ-101', 'PROJ-102']) to a test execution.
             """
             payload = {"add": test_keys}
             response = xray.add_test_to_test_execution(execution_id, payload)
             if response.ok:
-                return f"Tests {test_keys} agregados correctamente a la ejecución {execution_id}."
-            return f"Error al agregar tests a la ejecución {execution_id}: {response.status_code} - {response.text}"
+                return f"Tests {test_keys} successfully added to execution {execution_id}."
+            return f"Error adding tests to execution {execution_id}: {response.status_code} - {response.text}"
 
         @tool
         def xray_update_testrun_status(testrun_id: str, status: str) -> str:
             """
-            [XRAY] Actualiza el estado de una ejecución de prueba (Test Run) por su ID.
-            El status debe ser uno de los configurados (por ejemplo: 'PASS', 'FAIL', 'TODO', 'EXECUTING').
+            [XRAY] Updates the status of a test run by its ID.
+            The status must be one of the configured values (e.g., 'PASS', 'FAIL', 'TODO', 'EXECUTING').
             """
             payload = {"status": status}
             response = xray.update_testrun(testrun_id, payload)
             if response.ok:
-                return f"El estado del Test Run {testrun_id} se ha actualizado a {status}."
-            return f"Error al actualizar estado del Test Run {testrun_id}: {response.status_code} - {response.text}"
+                return f"Test Run {testrun_id} status updated to {status}."
+            return f"Error updating Test Run {testrun_id} status: {response.status_code} - {response.text}"
 
         @tool
         def xray_get_testrun_data(execution_id: str, test_id: str) -> str:
             """
-            [XRAY] Obtiene los datos detallados de un Test Run específico dada la clave de ejecución y el ID del Test.
+            [XRAY] Retrieves detailed data of a specific Test Run given the execution key and Test ID.
             """
             response = xray.get_test_run_data(execution_id, test_id)
             if response.ok:
                 return response.text
-            return f"Error al obtener datos del Test Run: {response.status_code} - {response.text}"
+            return f"Error retrieving Test Run data: {response.status_code} - {response.text}"
 
         @tool
         def xray_get_testrun_data_by_id(testrun_id: str) -> str:
             """
-            [XRAY] Obtiene los datos detallados de un Test Run por su ID, incluyendo iteraciones y pasos si aplica.
+            [XRAY] Retrieves detailed data of a Test Run by its ID, including iterations and steps if applicable.
             """
             response = xray.get_test_run_data_by_id(testrun_id)
             if response.ok:
                 return response.text
-            return f"Error al obtener datos del Test Run {testrun_id}: {response.status_code} - {response.text}"
+            return f"Error retrieving Test Run {testrun_id} data: {response.status_code} - {response.text}"
 
         @tool
         def xray_upload_results(payload: Dict[str, Any]) -> str:
             """
-            [XRAY] Importa/Sube resultados de pruebas automáticas a Xray usando el formato JSON de ejecución de Xray.
+            [XRAY] Imports/uploads automated test results to Xray using Xray's execution JSON format.
             """
             success = xray.upload_results(payload)
             if success:
-                return "Resultados de pruebas importados con éxito a Xray."
-            return "Error al importar los resultados de pruebas a Xray."
+                return "Test results imported successfully to Xray."
+            return "Error importing test results to Xray."
 
-        # Añadir herramientas al listado
+        # Add tools to the list
         tools_list.extend([
             xray_get_test_steps,
             xray_add_test_step,
