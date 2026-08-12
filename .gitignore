@@ -3,3 +3,4 @@
 meinLogin.py
 /src/__pycache__/
 /src/api/__pycache__/
+/src/agent/__pycache__/
