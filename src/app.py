@@ -255,6 +255,10 @@ def connect_agent():
                 os.environ["HTTPS_PROXY"] = jira_proxy
                 os.environ["http_proxy"] = jira_proxy
                 os.environ["https_proxy"] = jira_proxy
+                if "NO_PROXY" not in os.environ:
+                    os.environ["NO_PROXY"] = "localhost,127.0.0.1,.local"
+                if "no_proxy" not in os.environ:
+                    os.environ["no_proxy"] = "localhost,127.0.0.1,.local"
             else:
                 # Remove proxy variables if empty, so local connections (like localhost) don't get routed incorrectly
                 for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
@@ -526,8 +530,23 @@ if st.session_state.connected:
                 st.session_state.messages.append({"role": "assistant", "content": final_content})
 
             except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
                 error_msg = f"An error occurred while executing request: {e}"
                 st.error(error_msg)
+                
+                err_str = str(e).lower()
+                if "connection" in err_str or "connect" in err_str or "refused" in err_str:
+                    st.warning(
+                        "🔌 **Connection Error Diagnostic Hints:**\n\n"
+                        "1. **Local LLM Endpoint**: If using a local LLM (Ollama / LM Studio / vLLM), verify the service is running on the test machine and accessible at the specified `LLM_BASE_URL` (e.g. `http://localhost:11434/v1`). If Ollama is running on another machine, ensure `OLLAMA_HOST=0.0.0.0` is set on that host and enter its IP address.\n"
+                        "2. **Proxy Bypass (`NO_PROXY`)**: If a proxy (`JIRA_PROXY`) is configured, ensure local addresses (`localhost`, `127.0.0.1`) bypass the proxy.\n"
+                        "3. **Jira Connectivity**: Ensure the test machine has network line-of-sight to the Jira URL and is connected to VPN if required."
+                    )
+                
+                with st.expander("🔍 Show Error Details & Traceback"):
+                    st.code(tb, language="python")
+
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
 else:
     st.info("💡 Please fill in your connection credentials and click **Save & Connect** in the sidebar to start talking with the agent.")
