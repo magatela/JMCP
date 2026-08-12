@@ -61,7 +61,6 @@ def compile_agent(
     compiled_agent = create_react_agent(
         model=model,
         tools=tools,
-        state_modifier=system_prompt,
         checkpointer=memory
     )
     
