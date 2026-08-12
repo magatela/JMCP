@@ -1,4 +1,5 @@
 /venv
+.env
 
 meinLogin.py
 /src/__pycache__/
